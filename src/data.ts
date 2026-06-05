@@ -1,4 +1,4 @@
-import { Github, Linkedin, Mail, Twitter, Database, Code, Server, Layout, MonitorSmartphone, Smartphone, GraduationCap, Award, Briefcase, Phone } from 'lucide-react';
+import { Github, Linkedin, Mail, Twitter, Database, Code, Server, Layout, MonitorSmartphone, Smartphone, GraduationCap, Award, Briefcase, Phone, Terminal, BarChart } from 'lucide-react';
 
 export const PERSONAL_INFO = {
   name: "Ritish Kannur",
@@ -27,6 +27,8 @@ export const SKILLS = [
   { category: 'Frontend', items: ['HTML5', 'CSS3', 'JavaScript'], icon: Layout },
   { category: 'Backend', items: ['Spring Boot', 'Node.js', 'Express.js'], icon: Server },
   { category: 'Database', items: ['MySQL'], icon: Database },
+  { category: 'Tools', items: ['Git', 'GitHub', 'VS Code', 'Eclipse'], icon: Terminal },
+  { category: 'Data Analytics Tools', items: ['Microsoft Excel', 'Power BI', 'Tableau'], icon: BarChart },
 ];
 
 export const PROJECTS = [

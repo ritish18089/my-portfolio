@@ -18,7 +18,7 @@ app.use(express.json());
 
 // API Endpoint for Contact Form
 app.post('/api/contact', async (req: express.Request, res: express.Response): Promise<void> => {
-  const { name, email, message } = req.body;
+  const { name, email, message, subject } = req.body;
 
   // Validate request fields
   if (!name || !email || !message) {
@@ -48,7 +48,7 @@ app.post('/api/contact', async (req: express.Request, res: express.Response): Pr
       from: `"${name}" <${process.env.EMAIL_USER}>`, // Authenticated sender
       replyTo: email, // Direct reply to the user who filled the form
       to: process.env.EMAIL_USER, // Recipient is the portfolio owner
-      subject: `New Portfolio Message from ${name}`,
+      subject: subject || `New Portfolio Message from ${name}`,
       text: `You have received a new message from your portfolio contact form.
 
 Name: ${name}
