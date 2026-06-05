@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Send, Phone, Mail, MapPin, Clipboard, Check, Sparkles, User, Building2, Briefcase, FileText, X } from 'lucide-react';
+import { Send, Phone, Mail, MapPin, Clipboard, Check, Sparkles, User, Building2, Briefcase, FileText, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import { PERSONAL_INFO } from '../data';
 import Magnetic from './Magnetic';
 
@@ -18,6 +18,8 @@ export default function Contact() {
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [view, setView] = useState<'form' | 'options'>('form');
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
 
   const handleCopy = (text: string, type: 'email' | 'phone') => {
     navigator.clipboard.writeText(text);
@@ -49,6 +51,7 @@ export default function Contact() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           name,
@@ -58,33 +61,82 @@ export default function Contact() {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(text.substring(0, 80) || 'Received non-JSON response from server.');
+      }
 
       if (response.ok && data.success) {
         setStatus('success');
-        setFormData({
-          name: '',
-          email: '',
-          company: '',
-          role: '',
-          details: ''
-        });
-        setTimeout(() => setStatus('idle'), 4000);
+        setTimeout(() => {
+          setView('options');
+          setStatus('idle');
+        }, 1000);
       } else {
-        throw new Error(data.error || 'Failed to send message.');
+        throw new Error(data?.error || 'Failed to send message.');
       }
     } catch (error: any) {
       console.error('Contact Form Error:', error);
       setStatus('error');
-      setErrorMessage(error.message || 'Failed to connect. Launching mail client instead...');
       
-      // Fallback: trigger mailto if backend fails or is blocked
+      const displayMsg = error.message && !error.message.includes('JSON')
+        ? error.message
+        : 'Server connection failed. Launching your email app...';
+      setErrorMessage(displayMsg);
+      
+      // Fallback: trigger options list but warn the user
       setTimeout(() => {
-        const mailtoUrl = `mailto:${PERSONAL_INFO.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message + `\n\nContact Name: ${name}\nContact Email: ${email}`)}`;
-        window.location.href = mailtoUrl;
+        setView('options');
         setStatus('idle');
-      }, 2000);
+      }, 1500);
     }
+  };
+
+  const getGmailUrl = () => {
+    const { name, email, company, role, details } = formData;
+    const subject = `Job Opportunity: ${role} at ${company}`;
+    const body = `Hi Ritish,\n\nMy name is ${name} (${email}) and I am reaching out from ${company} regarding a ${role} opportunity.\n\nHere are the details of the job:\n${details}\n\nBest regards,\n${name}`;
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=${PERSONAL_INFO.email}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const getOutlookUrl = () => {
+    const { name, email, company, role, details } = formData;
+    const subject = `Job Opportunity: ${role} at ${company}`;
+    const body = `Hi Ritish,\n\nMy name is ${name} (${email}) and I am reaching out from ${company} regarding a ${role} opportunity.\n\nHere are the details of the job:\n${details}\n\nBest regards,\n${name}`;
+    return `https://outlook.live.com/default.aspx?rru=compose&to=${PERSONAL_INFO.email}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const getMailtoUrl = () => {
+    const { name, email, company, role, details } = formData;
+    const subject = `Job Opportunity: ${role} at ${company}`;
+    const body = `Hi Ritish,\n\nMy name is ${name} (${email}) and I am reaching out from ${company} regarding a ${role} opportunity.\n\nHere are the details of the job:\n${details}\n\nBest regards,\n${name}`;
+    return `mailto:${PERSONAL_INFO.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const handleCopyTemplate = () => {
+    const { name, email, company, role, details } = formData;
+    const subject = `Job Opportunity: ${role} at ${company}`;
+    const body = `Subject: ${subject}\n\nHi Ritish,\n\nMy name is ${name} (${email}) and I am reaching out from ${company} regarding a ${role} opportunity.\n\nHere are the details of the job:\n${details}\n\nBest regards,\n${name}`;
+    
+    navigator.clipboard.writeText(body);
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 2000);
+  };
+
+  const handleDone = () => {
+    setFormData({
+      name: '',
+      email: '',
+      company: '',
+      role: '',
+      details: ''
+    });
+    setView('form');
+    setStatus('idle');
   };
 
   return (
@@ -194,11 +246,10 @@ export default function Contact() {
                   <p className="text-white font-medium">Bangalore, Karnataka, India</p>
                 </div>
               </motion.div>
-
             </div>
           </motion.div>
 
-          {/* Interactive Hire Form Card */}
+          {/* Interactive Hire Form / Select Email Option Card */}
           <motion.div
              initial={{ opacity: 0, x: 30 }}
              whileInView={{ opacity: 1, x: 0 }}
@@ -210,172 +261,297 @@ export default function Contact() {
             <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none opacity-20"></div>
 
             <div className="relative z-10 flex flex-col h-full justify-between gap-6">
-              <div>
-                {/* Form Header */}
-                <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/5">
-                  <div className="w-12 h-12 rounded-xl bg-accent-primary/10 flex items-center justify-center text-accent-primary border border-accent-primary/20">
-                    <Briefcase className="w-6 h-6" />
+              {view === 'form' ? (
+                <div>
+                  {/* Form Header */}
+                  <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/5">
+                    <div className="w-12 h-12 rounded-xl bg-accent-primary/10 flex items-center justify-center text-accent-primary border border-accent-primary/20">
+                      <Briefcase className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-heading font-bold text-white uppercase tracking-wider">HIRE RITISH KANNUR</h3>
+                      <p className="text-slate-400 text-xs font-light">Provide direct hire details to compose offer</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-heading font-bold text-white uppercase tracking-wider">HIRE RITISH KANNUR</h3>
-                    <p className="text-slate-400 text-xs font-light">Provide direct hire details to compose offer</p>
-                  </div>
-                </div>
-                
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Name and Email side-by-side on desktop */}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {/* Your Name */}
+                  
+                  {/* Form */}
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Name and Email side-by-side on desktop */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Your Name */}
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                          <User className="w-3.5 h-3.5 text-accent-primary" />
+                          <span>Your Name *</span>
+                        </label>
+                        <input 
+                          type="text"
+                          name="name"
+                          required
+                          placeholder="e.g. Aaditya HR"
+                          value={formData.name}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors"
+                        />
+                      </div>
+
+                      {/* Your Email */}
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                          <Mail className="w-3.5 h-3.5 text-accent-primary" />
+                          <span>Your Email *</span>
+                        </label>
+                        <input 
+                          type="email"
+                          name="email"
+                          required
+                          placeholder="e.g. hr@agency.com"
+                          value={formData.email}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Company Name */}
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                        <User className="w-3.5 h-3.5 text-accent-primary" />
-                        <span>Your Name *</span>
+                        <Building2 className="w-3.5 h-3.5 text-accent-primary" />
+                        <span>Company Name *</span>
                       </label>
                       <input 
                         type="text"
-                        name="name"
+                        name="company"
                         required
-                        placeholder="e.g. Aaditya HR"
-                        value={formData.name}
+                        placeholder="e.g. Mind Matrix Inc"
+                        value={formData.company}
                         onChange={handleChange}
                         className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors"
                       />
                     </div>
 
-                    {/* Your Email */}
+                    {/* Proposed Role */}
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                        <Mail className="w-3.5 h-3.5 text-accent-primary" />
-                        <span>Your Email *</span>
+                        <Briefcase className="w-3.5 h-3.5 text-accent-primary" />
+                        <span>Proposed Role *</span>
                       </label>
                       <input 
-                        type="email"
-                        name="email"
+                        type="text"
+                        name="role"
                         required
-                        placeholder="e.g. hr@agency.com"
-                        value={formData.email}
+                        placeholder="e.g. Full-Stack React Engineer / Android Intern"
+                        value={formData.role}
                         onChange={handleChange}
                         className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors"
                       />
                     </div>
-                  </div>
 
-                  {/* Company Name */}
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                      <Building2 className="w-3.5 h-3.5 text-accent-primary" />
-                      <span>Company Name *</span>
-                    </label>
-                    <input 
-                      type="text"
-                      name="company"
-                      required
-                      placeholder="e.g. Mind Matrix Inc"
-                      value={formData.company}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors"
-                    />
-                  </div>
-
-                  {/* Proposed Role */}
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                      <Briefcase className="w-3.5 h-3.5 text-accent-primary" />
-                      <span>Proposed Role *</span>
-                    </label>
-                    <input 
-                      type="text"
-                      name="role"
-                      required
-                      placeholder="e.g. Full-Stack React Engineer / Android Intern"
-                      value={formData.role}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors"
-                    />
-                  </div>
-
-                  {/* Details of the Job */}
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                      <FileText className="w-3.5 h-3.5 text-accent-primary" />
-                      <span>Details of the Job *</span>
-                    </label>
-                    <textarea 
-                      name="details"
-                      required
-                      rows={4}
-                      placeholder="Enter salary package, tech stack requirements, project duration, or location details (Bangalore)..."
-                      value={formData.details}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors resize-none"
-                    />
-                  </div>
-
-                  {/* Targeted Recipient Summary Box */}
-                  <div className="p-4 bg-[#030208]/60 border border-white/5 rounded-xl space-y-2 text-xs font-mono">
-                    <div className="flex items-center gap-2 text-accent-primary">
-                      <Send className="w-3.5 h-3.5" />
-                      <span className="font-semibold uppercase tracking-wider text-[10px]">Targeted Recipient:</span>
+                    {/* Details of the Job */}
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                        <FileText className="w-3.5 h-3.5 text-accent-primary" />
+                        <span>Details of the Job *</span>
+                      </label>
+                      <textarea 
+                        name="details"
+                        required
+                        rows={4}
+                        placeholder="Enter salary package, tech stack requirements, project duration, or location details (Bangalore)..."
+                        value={formData.details}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 bg-[#030208] border border-white/10 rounded-xl text-white text-sm placeholder-slate-600 focus:outline-none focus:border-accent-primary/50 transition-colors resize-none"
+                      />
                     </div>
-                    <div className="text-slate-400 space-y-1">
-                      <p><span className="text-slate-600">To:</span> {PERSONAL_INFO.email}</p>
-                      <p><span className="text-slate-600">Subject:</span> Job Opportunity: <span className={formData.role ? "text-accent-secondary font-semibold" : "text-slate-500 font-light"}>{formData.role || '[Role]'}</span> at <span className={formData.company ? "text-accent-secondary font-semibold" : "text-slate-500 font-light"}>{formData.company || '[Company]'}</span></p>
-                    </div>
-                  </div>
 
-                  {/* Submit button */}
-                  <Magnetic className="w-full">
+                    {/* Targeted Recipient Summary Box */}
+                    <div className="p-4 bg-[#030208]/60 border border-white/5 rounded-xl space-y-2 text-xs font-mono">
+                      <div className="flex items-center gap-2 text-accent-primary">
+                        <Send className="w-3.5 h-3.5" />
+                        <span className="font-semibold uppercase tracking-wider text-[10px]">Targeted Recipient:</span>
+                      </div>
+                      <div className="text-slate-400 space-y-1">
+                        <p><span className="text-slate-600">To:</span> {PERSONAL_INFO.email}</p>
+                        <p><span className="text-slate-600">Subject:</span> Job Opportunity: <span className={formData.role ? "text-accent-secondary font-semibold" : "text-slate-500 font-light"}>{formData.role || '[Role]'}</span> at <span className={formData.company ? "text-accent-secondary font-semibold" : "text-slate-500 font-light"}>{formData.company || '[Company]'}</span></p>
+                      </div>
+                    </div>
+
+                    {/* Submit button */}
+                    <Magnetic className="w-full">
+                      <button 
+                        type="submit"
+                        disabled={status === 'loading'}
+                        className={`group relative flex items-center justify-center gap-2.5 w-full py-4 text-white font-semibold rounded-xl overflow-hidden transition-all duration-300 shadow-lg cursor-pointer ${
+                          status === 'loading' 
+                            ? 'bg-purple-800/50 border border-purple-500/30 cursor-not-allowed' 
+                            : status === 'success' 
+                            ? 'bg-green-600 hover:bg-green-700 shadow-green-600/10' 
+                            : status === 'error'
+                            ? 'bg-red-600 hover:bg-red-700 shadow-red-600/10'
+                            : 'bg-accent-primary hover:bg-purple-600 hover:shadow-accent-primary/10'
+                        }`}
+                      >
+                        {status === 'loading' ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <span>Sending Inquiry...</span>
+                          </>
+                        ) : status === 'success' ? (
+                          <>
+                            <Check className="w-4 h-4 text-white animate-[scaleIn_0.2s_ease-out]" />
+                            <span>Inquiry Registered!</span>
+                          </>
+                        ) : status === 'error' ? (
+                          <>
+                            <X className="w-4 h-4 text-white animate-[scaleIn_0.2s_ease-out]" />
+                            <span>{errorMessage || 'Failed to Connect.'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                            <span>Proceed to Compose Email</span>
+                          </>
+                        )}
+                      </button>
+                    </Magnetic>
+                  </form>
+                </div>
+              ) : (
+                <div>
+                  {/* Options Header */}
+                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setView('form')}
+                        className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all cursor-pointer"
+                        aria-label="Back to edit"
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                      </button>
+                      <div>
+                        <h3 className="text-sm font-heading font-bold text-white uppercase tracking-wider">SELECT EMAIL OPTION</h3>
+                        <p className="text-slate-400 text-[10px] font-light">Choose where you want to write and send</p>
+                      </div>
+                    </div>
                     <button 
-                      type="submit"
-                      disabled={status === 'loading'}
-                      className={`group relative flex items-center justify-center gap-2.5 w-full py-4 text-white font-semibold rounded-xl overflow-hidden transition-all duration-300 shadow-lg cursor-pointer ${
-                        status === 'loading' 
-                          ? 'bg-purple-800/50 border border-purple-500/30 cursor-not-allowed' 
-                          : status === 'success' 
-                          ? 'bg-green-600 hover:bg-green-700 shadow-green-600/10' 
-                          : status === 'error'
-                          ? 'bg-red-600 hover:bg-red-700 shadow-red-600/10'
-                          : 'bg-accent-primary hover:bg-purple-600 hover:shadow-accent-primary/10'
-                      }`}
+                      onClick={handleDone}
+                      className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all cursor-pointer"
+                      aria-label="Close"
                     >
-                      {status === 'loading' ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                          <span>Sending Inquiry...</span>
-                        </>
-                      ) : status === 'success' ? (
-                        <>
-                          <Check className="w-4 h-4 text-white" />
-                          <span>Offer Sent Successfully!</span>
-                        </>
-                      ) : status === 'error' ? (
-                        <>
-                          <X className="w-4 h-4 text-white" />
-                          <span>Fallback: Opening Mail App...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                          <span>Proceed to Compose Email</span>
-                        </>
-                      )}
+                      <X className="w-5 h-5" />
                     </button>
-                  </Magnetic>
-                  
-                  {/* Status Helper Messages */}
-                  {status === 'success' && (
-                    <p className="text-center text-xs text-green-400 font-medium animate-[fadeIn_0.2s_ease-out]">
-                      Your inquiry has been sent directly to Ritish's inbox!
-                    </p>
-                  )}
-                  {status === 'error' && (
-                    <p className="text-center text-xs text-red-400 font-medium animate-[fadeIn_0.2s_ease-out]">
-                      {errorMessage || 'Direct send failed. Launching mail composer instead...'}
-                    </p>
-                  )}
-                </form>
-              </div>
+                  </div>
+
+                  {/* Options Content */}
+                  <div className="space-y-6">
+                    {/* Status Checkmark */}
+                    <div className="flex flex-col items-center text-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 flex items-center justify-center animate-[scaleIn_0.3s_ease-out]">
+                        <Check className="w-6 h-6 animate-pulse" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-white">Details Saved to Portfolio Logs!</h4>
+                        <p className="text-[11px] text-slate-400 leading-relaxed max-w-sm">
+                          Your offer details have been registered. Now, choose the client below to send the pre-filled email template straight to Ritish:
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Options Stack */}
+                    <div className="space-y-3">
+                      {/* Gmail Option */}
+                      <a 
+                        href={getGmailUrl()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3.5 rounded-2xl bg-[#030208] border border-white/5 hover:border-red-500/30 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center font-heading font-bold group-hover:scale-105 transition-transform">
+                            G
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-red-400 transition-colors">Use Gmail (Web Browser)</p>
+                            <p className="text-[10px] text-slate-500 font-light">Perfect if you use Gmail in Chrome or Safari</p>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-red-400 transition-colors" />
+                      </a>
+
+                      {/* Outlook Option */}
+                      <a 
+                        href={getOutlookUrl()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3.5 rounded-2xl bg-[#030208] border border-white/5 hover:border-blue-500/30 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center font-heading font-bold group-hover:scale-105 transition-transform">
+                            O
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">Use Outlook (Web Browser)</p>
+                            <p className="text-[10px] text-slate-500 font-light">Opens Outlook web compose window directly</p>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-blue-400 transition-colors" />
+                      </a>
+
+                      {/* Default Native Mail App */}
+                      <a 
+                        href={getMailtoUrl()}
+                        className="flex items-center justify-between p-3.5 rounded-2xl bg-[#030208] border border-white/5 hover:border-teal-500/30 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <Mail className="w-5 h-5 animate-pulse" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-teal-400 transition-colors">Default Native App (Apple Mail, Outlook Desktop, etc.)</p>
+                            <p className="text-[10px] text-slate-500 font-light">Launches whichever default client is set up in your OS</p>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-teal-400 transition-colors" />
+                      </a>
+
+                      {/* Copy Template Details */}
+                      <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#030208] border border-white/5 hover:border-purple-500/30 transition-colors group cursor-default">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
+                            <Clipboard className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white">Copy Template Details</p>
+                            <p className="text-[10px] text-slate-500 font-light">Copy the full pre-formatted template to send manually</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={handleCopyTemplate}
+                          className="px-3 py-1.5 text-[10px] font-semibold bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10 transition-colors cursor-pointer"
+                        >
+                          {copiedTemplate ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Options Footer Buttons */}
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <button 
+                        onClick={() => setView('form')}
+                        className="py-3 bg-transparent hover:bg-white/5 text-white font-semibold rounded-xl border border-white/10 transition-colors cursor-pointer text-center text-xs"
+                      >
+                        Back to Edit
+                      </button>
+                      <button 
+                        onClick={handleDone}
+                        className="py-3 bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold rounded-xl transition-colors cursor-pointer text-center text-xs shadow-lg hover:shadow-teal-500/25"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -384,5 +560,3 @@ export default function Contact() {
     </section>
   );
 }
-
-
